@@ -1,0 +1,1285 @@
+1. Imporitng libraries
+import warnings
+warnings.filterwarnings('ignore')
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LinearRegression
+from sklearn.feature_selection import RFE
+from sklearn.metrics import r2_score
+from sklearn.preprocessing import MinMaxScaler
+import statsmodels
+import statsmodels.api as sm
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+pd.set_option('display.float_format',lambda x: '%.5f' %x)
+2. Loading and Understanding data
+2.1 Loading Dataset
+bbikes = pd.read_csv('day.csv')
+bbikes.head()
+
+2.2 Data Understanding and observations
+#checking shapes
+bbikes.shape
+(730, 16)
+# checking null values
+bbikes.info()
+<class 'pandas.core.frame.DataFrame'>
+RangeIndex: 730 entries, 0 to 729
+Data columns (total 16 columns):
+ #   Column      Non-Null Count  Dtype  
+---  ------      --------------  -----  
+ 0   instant     730 non-null    int64  
+ 1   dteday      730 non-null    object 
+ 2   season      730 non-null    int64  
+ 3   yr          730 non-null    int64  
+ 4   mnth        730 non-null    int64  
+ 5   holiday     730 non-null    int64  
+ 6   weekday     730 non-null    int64  
+ 7   workingday  730 non-null    int64  
+ 8   weathersit  730 non-null    int64  
+ 9   temp        730 non-null    float64
+ 10  atemp       730 non-null    float64
+ 11  hum         730 non-null    float64
+ 12  windspeed   730 non-null    float64
+ 13  casual      730 non-null    int64  
+ 14  registered  730 non-null    int64  
+ 15  cnt         730 non-null    int64  
+dtypes: float64(4), int64(11), object(1)
+memory usage: 91.4+ KB
+#checking details
+bbikes.describe()
+
+#checking colums
+bbikes.columns
+Index(['instant', 'dteday', 'season', 'yr', 'mnth', 'holiday', 'weekday',
+       'workingday', 'weathersit', 'temp', 'atemp', 'hum', 'windspeed',
+       'casual', 'registered', 'cnt'],
+      dtype='object')
+#checking size
+bbikes.size
+11680
+#checking axes
+bbikes.axes
+[RangeIndex(start=0, stop=730, step=1),
+ Index(['instant', 'dteday', 'season', 'yr', 'mnth', 'holiday', 'weekday',
+        'workingday', 'weathersit', 'temp', 'atemp', 'hum', 'windspeed',
+        'casual', 'registered', 'cnt'],
+       dtype='object')]
+#checking dimensions
+bbikes.ndim
+2
+#checking values
+bbikes.values
+array([[1, '01-01-2018', 1, ..., 331, 654, 985],
+       [2, '02-01-2018', 1, ..., 131, 670, 801],
+       [3, '03-01-2018', 1, ..., 120, 1229, 1349],
+       ...,
+       [728, '29-12-2019', 1, ..., 159, 1182, 1341],
+       [729, '30-12-2019', 1, ..., 364, 1432, 1796],
+       [730, '31-12-2019', 1, ..., 439, 2290, 2729]], dtype=object)
+#checking datatypes
+bbikes.dtypes
+instant         int64
+dteday         object
+season          int64
+yr              int64
+mnth            int64
+holiday         int64
+weekday         int64
+workingday      int64
+weathersit      int64
+temp          float64
+atemp         float64
+hum           float64
+windspeed     float64
+casual          int64
+registered      int64
+cnt             int64
+dtype: object
+Insights:
+
+Dataset contains 730 rows and 15 colums
+Dataset have no null value so no null value handling needs to be done
+# Duplicate values checking
+
+len(bbikes[bbikes.duplicated()])
+0
+Insights:
+
+0 duplicate values found
+3 Data Cleaning
+3.1 Dropping colums according to Dataset characteristics
+# index column which has nothing to do with target sp droping instant column
+bbikes.drop(['instant'], axis = 1, inplace = True)
+
+# already have month and weekday columns to work with so dropping dteday
+bbikes.drop(['dteday'], axis = 1, inplace = True)
+
+# cnt column is sum of casual and registered column so dropping casual and registered column
+bbikes.drop(['casual'], axis = 1, inplace = True)
+bbikes.drop(['registered'], axis = 1, inplace = True)
+bbikes.head()
+
+bbikes.season.value_counts()
+3    188
+2    184
+1    180
+4    178
+Name: season, dtype: int64
+bbikes.weathersit.value_counts()
+1    463
+2    246
+3     21
+Name: weathersit, dtype: int64
+bbikes.corr()
+
+bbikes.info()
+<class 'pandas.core.frame.DataFrame'>
+RangeIndex: 730 entries, 0 to 729
+Data columns (total 12 columns):
+ #   Column      Non-Null Count  Dtype  
+---  ------      --------------  -----  
+ 0   season      730 non-null    int64  
+ 1   yr          730 non-null    int64  
+ 2   mnth        730 non-null    int64  
+ 3   holiday     730 non-null    int64  
+ 4   weekday     730 non-null    int64  
+ 5   workingday  730 non-null    int64  
+ 6   weathersit  730 non-null    int64  
+ 7   temp        730 non-null    float64
+ 8   atemp       730 non-null    float64
+ 9   hum         730 non-null    float64
+ 10  windspeed   730 non-null    float64
+ 11  cnt         730 non-null    int64  
+dtypes: float64(4), int64(8)
+memory usage: 68.6 KB
+3.2 Handling Missing Values
+# As there is no null values , still verifying 
+bbikes.isnull().sum()
+season        0
+yr            0
+mnth          0
+holiday       0
+weekday       0
+workingday    0
+weathersit    0
+temp          0
+atemp         0
+hum           0
+windspeed     0
+cnt           0
+dtype: int64
+Insights
+
+No null values
+3.3 Handling Outliers
+bbikes.columns
+Index(['season', 'yr', 'mnth', 'holiday', 'weekday', 'workingday',
+       'weathersit', 'temp', 'atemp', 'hum', 'windspeed', 'cnt'],
+      dtype='object')
+bbikes.nunique()
+season          4
+yr              2
+mnth           12
+holiday         2
+weekday         7
+workingday      2
+weathersit      3
+temp          498
+atemp         689
+hum           594
+windspeed     649
+cnt           695
+dtype: int64
+# box plots for indepent variables with continuous values
+cols =  ['windspeed','atemp','temp','hum', ]
+plt.figure(figsize=(18,4))
+
+i = 1
+for col in cols:
+    plt.subplot(1,4,i)
+    sns.boxplot(y=col, data=bbikes)
+    i+=1
+Notebook Image
+__ Insights__
+
+No outliers needs to be handled
+4. Exploratory Data Analysis (EDA)
+4.1 Converting season,mnth , weekdays and weathersit
+bbikes['season']= bbikes['season'].map({1:'spring', 2:'summer', 3:'fall', 4:'winter'})
+
+bbikes['mnth']= bbikes['mnth'].map({1: 'jan',2: 'feb',3: 'mar',4: 'apr',5: 'may',6: 'jun',7: 'jul',8: 'aug',9: 'sept',10: 'oct',11: 'nov',12: 'dec'})
+
+bbikes['weekday']= bbikes['weekday'].map({0: 'sun',1: 'mon',2: 'tue',3: 'wed',4: 'thu',5: 'fri',6: 'sat'})
+
+bbikes['weathersit']= bbikes['weathersit'].map({1:'good',2:'moderate',3:'bad',4:'severe'})
+
+bbikes.head()
+
+4.2 Target Variables
+#subplot grid creation
+fig, ax= plt.subplots(nrows=1, ncols= 2, figsize= (12,5))
+
+#main title creation
+fig.suptitle('basic analysis of target variables (cnt)'.upper(), fontsize= 20)
+
+#Populating plot1:
+sns.boxplot(y=bbikes['cnt'], ax= ax[0], palette= 'Purples')
+ax[0].set_title('boxplot displaying statistics of target variables'.upper(),fontsize= 12, fontweight= 20, y=1.02)
+ax[0].set_ylabel('')
+ax[0].set_xlabel('')
+
+#Populating plot2:
+sns.distplot(bbikes['cnt'], ax= ax[1], color= 'purple')
+ax[1].set_title('Plot of target variables(cnt) distribution'.upper(),fontsize= 12, fontweight= 20, y=1.02)
+ax[1].set_ylabel('')
+ax[1].set_xlabel('')
+
+#setting style
+
+plt.tight_layout()
+plt.show()
+Notebook Image
+Insights
+
+Q1 of target variable lies at apx 3000 and Q3 at apx 6000 so IQR is apx 3000 with median apx 4000
+Target values shows an almost distribution of values with 2 distinct plateaus on either side
+4.2.2. Continous Numeric Variables
+#using seaborn drawing pairplots for continuous numeric variables
+plt.figure(figsize = (15,30))
+sns.pairplot(data=bbikes,vars=['cnt', 'temp', 'atemp', 'hum','windspeed'])
+plt.show()
+<Figure size 1080x2160 with 0 Axes>
+Notebook Image
+Insights:
+
+temp and atemp are highly co-related with each other
+4.2.3. Visualising the Data to Find the Correlation between the Numerical Variable
+plt.figure(figsize=(20,15))
+sns.pairplot(bbikes)
+plt.show()
+<Figure size 1440x1080 with 0 Axes>
+Notebook Image
+# continuous variables relationship among each other
+sns.heatmap(bbikes[['temp','atemp','hum','windspeed','cnt']].corr(), cmap='PuBu', annot = True)
+plt.show()
+Notebook Image
+Insights:
+
+temp and atemp has correlation more than .99 i.e., almost 1 so highly correlated and so atemp needs to be dropped
+# numeric variables Correlations
+cor=bbikes.corr()
+sns.heatmap(cor, cmap="GnBu", annot = True)
+plt.show()
+Notebook Image
+4.2.4. Heatmap of correlation between variables
+#Calculate Correlation
+corr = bbikes.corr()
+plt.figure(figsize=(25,10))
+
+#Draw Heatmap of correlation
+sns.heatmap(corr,annot=True, cmap='twilight' )
+plt.show()
+Notebook Image
+Insights:
+
+Target variable has a linear relationship hence linear regression model can be build
+from correlation it can be seen that map,temp,atemp an day_old are highly correlated and only one variable can be considered so need to eliminated during building model
+4.2.5. Analyses of Categorical Variabels with target variables
+# to see demands creating boxplots for categorical values
+vars_cat = ['season','yr','mnth','holiday','weekday','workingday','weathersit']
+plt.figure(figsize=(15, 15))
+for i in enumerate(vars_cat):
+    plt.subplot(3,3,i[0]+1)
+    sns.boxplot(data=bbikes, x=i[1], y='cnt', palette= 'Purples')
+plt.show()
+Notebook Image
+Insights:
+
+In the first and last month of the year the bike rental is minimum due to weather
+In the month of September bike rental is maximum
+During holidays the bike rental demands are reduced
+bike rental is maximum when the weather is good and favourable
+# visualization of cnt v/s windspeed
+
+plt.figure(figsize=(6,5),dpi=110)
+plt.title("Cnt vs Windspeed",fontsize=16)
+sns.regplot(data=bbikes,y="cnt",x="windspeed", scatter_kws={"color": "green"}, line_kws={"color": "purple"})
+plt.show()
+Notebook Image
+Insights:
+
+cnt is decreasing with increase in windspeed
+# visualization of cnt v/s Temperature
+
+plt.figure(figsize=(6,5),dpi=110)
+plt.title("Cnt vs Temp",fontsize=16)
+sns.regplot(data=bbikes,y="cnt",x="temp",scatter_kws={"color": "purple"}, line_kws={"color": "darkgreen"})
+plt.xlabel("Temperature")
+plt.show()
+Notebook Image
+Insights:
+
+Bike rent is correlated with temperature
+cnt linearly grows with temperature showing correlation
+# visualization of cnt v/s humidity
+
+plt.figure(figsize=(6,5),dpi=110)
+plt.title("Cnt vs Hum",fontsize=16)
+sns.regplot(data=bbikes,y="cnt",x="hum", scatter_kws={"color": "purple"}, line_kws={"color": "green"})
+plt.xlabel("Humidity")
+plt.show()
+Notebook Image
+Insights:
+
+cnt is decreasing with humdity
+4.2.6. Correlation of numeric features
+num_features = ["temp","atemp","hum","windspeed","cnt"]
+plt.figure(figsize=(15,8),dpi=130)
+plt.title("Correlation of numeric features",fontsize=16)
+sns.heatmap(bbikes[num_features].corr(),annot= True,cmap="gist_heat")
+plt.show()
+Notebook Image
+Insights:
+
+temp and atemp are highly correalted so one needs to be dropped
+bbikes.describe()
+
+5 Linear Regression for Model Development
+bbikes.head()
+
+Insights:
+
+workingday,yr,holiday are binary variables
+5.1 Dummy Variables Creation
+bbikes = pd.get_dummies(data=bbikes,columns=["season","mnth","weekday"],drop_first=True)
+bbikes = pd.get_dummies(data=bbikes,columns=["weathersit"])
+# columns after dummy creation
+
+bbikes.columns
+Index(['yr', 'holiday', 'workingday', 'temp', 'atemp', 'hum', 'windspeed',
+       'cnt', 'season_spring', 'season_summer', 'season_winter', 'mnth_aug',
+       'mnth_dec', 'mnth_feb', 'mnth_jan', 'mnth_jul', 'mnth_jun', 'mnth_mar',
+       'mnth_may', 'mnth_nov', 'mnth_oct', 'mnth_sept', 'weekday_mon',
+       'weekday_sat', 'weekday_sun', 'weekday_thu', 'weekday_tue',
+       'weekday_wed', 'weathersit_bad', 'weathersit_good',
+       'weathersit_moderate'],
+      dtype='object')
+bbikes.head()
+
+6. Model Building
+# space checking before split
+bbikes.shape
+(730, 31)
+6.1. Train Test Split
+y - only target variable
+X - all remaing variable including independent variables
+Train Test split ratio- 70:30
+y=bbikes.pop('cnt')
+X=bbikes
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+X.head()
+
+#shape of train
+print(X_train.shape)
+(511, 30)
+#shape of test
+print(X_test.shape)
+(219, 30)
+6.2. Feature Scaling
+#creating a scaler instance
+scaler = MinMaxScaler()
+# Initializing a list of feature names for scaling
+num_vars= [i for i in X_train.columns if X_train[i].nunique() > 2]
+# Scaling variable and saving in dataframe
+X_train[num_vars] = scaler.fit_transform(X_train[num_vars])
+# Inspecting X_train
+X_train.describe()
+
+X_train.head()
+
+7. Model Development
+Automated Selection
+Manual Selection
+7.1. Automated selction - Recursive Feature Elimination (RFE)
+# Creating instance for linear Regression
+l_r = LinearRegression()
+# fiting model with x-train and Y-train
+l_r.fit(X_train,y_train)
+LinearRegression()
+# Creating RFE instance on fitted l_r
+rfe = RFE(l_r,15)
+# Converting RFE to fitted RFE
+rfe.fit(X_train,y_train)
+RFE(estimator=LinearRegression(), n_features_to_select=15)
+# Visual Observation
+list(zip(X_train.columns,rfe.support_,rfe.ranking_))
+[('yr', True, 1),
+ ('holiday', True, 1),
+ ('workingday', False, 13),
+ ('temp', True, 1),
+ ('atemp', True, 1),
+ ('hum', True, 1),
+ ('windspeed', True, 1),
+ ('season_spring', True, 1),
+ ('season_summer', False, 8),
+ ('season_winter', True, 1),
+ ('mnth_aug', False, 12),
+ ('mnth_dec', True, 1),
+ ('mnth_feb', False, 9),
+ ('mnth_jan', False, 15),
+ ('mnth_jul', True, 1),
+ ('mnth_jun', False, 10),
+ ('mnth_mar', True, 1),
+ ('mnth_may', False, 2),
+ ('mnth_nov', True, 1),
+ ('mnth_oct', False, 4),
+ ('mnth_sept', True, 1),
+ ('weekday_mon', False, 5),
+ ('weekday_sat', False, 14),
+ ('weekday_sun', False, 11),
+ ('weekday_thu', False, 16),
+ ('weekday_tue', False, 7),
+ ('weekday_wed', False, 6),
+ ('weathersit_bad', True, 1),
+ ('weathersit_good', True, 1),
+ ('weathersit_moderate', False, 3)]
+Insights:
+
+the feature selected by RFE must be included in the model when boolean returned by rfe.support_is True
+Results given by RFE must keep top 15 features
+7.2. Manual Selection
+7.2.1. using statsmodel api to build model
+def build_model(cols):
+    X_train_sm = sm.add_constant(X_train[cols])
+    l_r = sm.OLS(y_train, X_train_sm).fit()
+    print(l_r.summary())
+    return l_r
+7.2.2. Calculating and printing VIFs
+def get_vif(cols):
+    df1 = X_train[cols]
+    vif = pd.DataFrame()
+    vif['Features'] = df1.columns
+    vif['VIF'] = [variance_inflation_factor(df1.values, i) for i in range(df1.shape[1])]
+    vif['VIF'] = round(vif['VIF'],2)
+    print(vif.sort_values(by='VIF',ascending=False))
+X_train.columns[rfe.support_]
+Index(['yr', 'holiday', 'temp', 'atemp', 'hum', 'windspeed', 'season_spring',
+       'season_winter', 'mnth_dec', 'mnth_jul', 'mnth_mar', 'mnth_nov',
+       'mnth_sept', 'weathersit_bad', 'weathersit_good'],
+      dtype='object')
+#Features not selected by RFE
+X_train.columns[~rfe.support_]
+Index(['workingday', 'season_summer', 'mnth_aug', 'mnth_feb', 'mnth_jan',
+       'mnth_jun', 'mnth_may', 'mnth_oct', 'weekday_mon', 'weekday_sat',
+       'weekday_sun', 'weekday_thu', 'weekday_tue', 'weekday_wed',
+       'weathersit_moderate'],
+      dtype='object')
+#  Using 15 columns supported by RFE for regression
+X_train_rfe = X_train[['yr', 'holiday', 'workingday', 'temp', 'hum', 'windspeed', 'season_spring',
+       'season_summer', 'season_winter', 'mnth_jan', 'mnth_jul', 'mnth_sept', 'weekday_sat',
+       'weathersit_bad', 'weathersit_moderate']]
+X_train_rfe.shape
+(511, 15)
+8. Building Model
+8.1. Model 1
+#Selected columns for Model 1 by RFE
+cols = ['yr', 'holiday', 'workingday', 'temp', 'hum', 'windspeed', 'season_spring',
+       'season_summer', 'season_winter', 'mnth_jan', 'mnth_jul', 'mnth_sept', 'weekday_sat',
+       'weathersit_bad', 'weathersit_moderate']
+
+build_model(cols)
+get_vif(cols)
+                            OLS Regression Results                            
+==============================================================================
+Dep. Variable:                    cnt   R-squared:                       0.833
+Model:                            OLS   Adj. R-squared:                  0.828
+Method:                 Least Squares   F-statistic:                     165.0
+Date:                Tue, 07 Jun 2022   Prob (F-statistic):          1.70e-181
+Time:                        16:24:03   Log-Likelihood:                -4134.9
+No. Observations:                 511   AIC:                             8302.
+Df Residuals:                     495   BIC:                             8370.
+Df Model:                          15                                         
+Covariance Type:            nonrobust                                         
+=======================================================================================
+                          coef    std err          t      P>|t|      [0.025      0.975]
+---------------------------------------------------------------------------------------
+const                2809.2461    346.564      8.106      0.000    2128.328    3490.164
+yr                   1955.0549     72.324     27.032      0.000    1812.955    2097.155
+holiday              -839.6361    237.519     -3.535      0.000   -1306.306    -372.966
+workingday           -202.7038    107.596     -1.884      0.060    -414.104       8.697
+temp                 4233.9838    303.827     13.936      0.000    3637.034    4830.934
+hum                 -1378.2895    339.821     -4.056      0.000   -2045.959    -710.620
+windspeed           -1072.6371    210.709     -5.091      0.000   -1486.631    -658.643
+season_spring        -795.1544    191.300     -4.157      0.000   -1171.014    -419.294
+season_summer         380.6325    133.154      2.859      0.004     119.015     642.250
+season_winter         767.1240    151.761      5.055      0.000     468.950    1065.298
+mnth_jan              -59.8050    156.115     -0.383      0.702    -366.534     246.924
+mnth_jul             -367.2369    159.579     -2.301      0.022    -680.772     -53.702
+mnth_sept             666.1046    144.332      4.615      0.000     382.526     949.684
+weekday_sat           -72.5004    136.440     -0.531      0.595    -340.574     195.573
+weathersit_bad      -1761.9834    238.533     -7.387      0.000   -2230.645   -1293.322
+weathersit_moderate  -464.2948     93.779     -4.951      0.000    -648.550    -280.040
+==============================================================================
+Omnibus:                       65.698   Durbin-Watson:                   2.095
+Prob(Omnibus):                  0.000   Jarque-Bera (JB):              125.994
+Skew:                          -0.750   Prob(JB):                     4.37e-28
+Kurtosis:                       4.914   Cond. No.                         23.6
+==============================================================================
+
+Notes:
+[1] Standard Errors assume that the covariance matrix of the errors is correctly specified.
+               Features      VIF
+4                   hum 28.53000
+3                  temp 17.32000
+2            workingday  6.06000
+5             windspeed  5.73000
+6         season_spring  4.45000
+8         season_winter  3.24000
+7         season_summer  3.01000
+14  weathersit_moderate  2.26000
+0                    yr  2.10000
+12          weekday_sat  2.01000
+10             mnth_jul  1.83000
+9              mnth_jan  1.67000
+11            mnth_sept  1.47000
+13       weathersit_bad  1.27000
+1               holiday  1.21000
+# Seeing correaltion 
+plt.figure(figsize = (15,10))
+sns.heatmap(bbikes[['yr', 'holiday', 'workingday', 'temp', 'hum', 'windspeed', 'season_spring',
+       'season_summer', 'season_winter', 'mnth_jan', 'mnth_jul', 'mnth_sept', 'weekday_sat',
+       'weathersit_bad', 'weathersit_moderate']].corr(), cmap='GnBu', annot=True)
+plt.show()
+Notebook Image
+8.2. Model 2
+# as variable mnth_jan has negative coefficient and is insignificant as it has high p-value so dropping it
+cols = ['yr', 'holiday', 'workingday', 'temp', 'hum', 'windspeed', 'season_spring',
+       'season_summer', 'season_winter', 'mnth_jul', 'mnth_sept', 'weekday_sat',
+       'weathersit_bad', 'weathersit_moderate']
+build_model(cols)
+get_vif(cols)
+                            OLS Regression Results                            
+==============================================================================
+Dep. Variable:                    cnt   R-squared:                       0.833
+Model:                            OLS   Adj. R-squared:                  0.829
+Method:                 Least Squares   F-statistic:                     177.1
+Date:                Tue, 07 Jun 2022   Prob (F-statistic):          1.35e-182
+Time:                        16:24:05   Log-Likelihood:                -4135.0
+No. Observations:                 511   AIC:                             8300.
+Df Residuals:                     496   BIC:                             8363.
+Df Model:                          14                                         
+Covariance Type:            nonrobust                                         
+=======================================================================================
+                          coef    std err          t      P>|t|      [0.025      0.975]
+---------------------------------------------------------------------------------------
+const                2792.2799    343.427      8.131      0.000    2117.529    3467.030
+yr                   1955.1531     72.261     27.057      0.000    1813.177    2097.129
+holiday              -840.8434    237.294     -3.543      0.000   -1307.069    -374.618
+workingday           -200.8684    107.396     -1.870      0.062    -411.877      10.140
+temp                 4258.5248    296.741     14.351      0.000    3675.500    4841.549
+hum                 -1383.9501    339.207     -4.080      0.000   -2050.411    -717.489
+windspeed           -1073.0058    210.525     -5.097      0.000   -1486.637    -659.375
+season_spring        -806.5438    188.813     -4.272      0.000   -1177.516    -435.572
+season_summer         384.0827    132.735      2.894      0.004     123.290     644.875
+season_winter         774.4415    150.424      5.148      0.000     478.895    1069.988
+mnth_jul             -369.6007    159.322     -2.320      0.021    -682.630     -56.571
+mnth_sept             665.9059    144.207      4.618      0.000     382.574     949.238
+weekday_sat           -71.1261    136.276     -0.522      0.602    -338.875     196.623
+weathersit_bad      -1756.5848    237.911     -7.383      0.000   -2224.023   -1289.147
+weathersit_moderate  -462.7865     93.616     -4.943      0.000    -646.719    -278.854
+==============================================================================
+Omnibus:                       65.111   Durbin-Watson:                   2.095
+Prob(Omnibus):                  0.000   Jarque-Bera (JB):              124.284
+Skew:                          -0.746   Prob(JB):                     1.03e-27
+Kurtosis:                       4.900   Cond. No.                         23.5
+==============================================================================
+
+Notes:
+[1] Standard Errors assume that the covariance matrix of the errors is correctly specified.
+               Features      VIF
+4                   hum 27.99000
+3                  temp 16.83000
+2            workingday  6.06000
+5             windspeed  5.70000
+6         season_spring  4.10000
+8         season_winter  3.23000
+7         season_summer  3.01000
+13  weathersit_moderate  2.25000
+0                    yr  2.10000
+11          weekday_sat  2.01000
+9              mnth_jul  1.82000
+10            mnth_sept  1.47000
+12       weathersit_bad  1.26000
+1               holiday  1.21000
+8.3. Model 3
+checking VIFs as all the columns have p-value > .05
+# Dropping the variable hum as it has negative coefficient and is insignificant as it has high p-value
+cols = ['yr', 'holiday', 'workingday', 'temp', 'windspeed', 'season_spring',
+       'season_summer', 'season_winter', 'mnth_jul', 'mnth_sept', 'weekday_sat',
+       'weathersit_bad', 'weathersit_moderate']
+build_model(cols)
+get_vif(cols)
+                            OLS Regression Results                            
+==============================================================================
+Dep. Variable:                    cnt   R-squared:                       0.828
+Model:                            OLS   Adj. R-squared:                  0.823
+Method:                 Least Squares   F-statistic:                     183.6
+Date:                Tue, 07 Jun 2022   Prob (F-statistic):          3.37e-180
+Time:                        16:24:05   Log-Likelihood:                -4143.4
+No. Observations:                 511   AIC:                             8315.
+Df Residuals:                     497   BIC:                             8374.
+Df Model:                          13                                         
+Covariance Type:            nonrobust                                         
+=======================================================================================
+                          coef    std err          t      P>|t|      [0.025      0.975]
+---------------------------------------------------------------------------------------
+const                2004.0762    288.371      6.950      0.000    1437.500    2570.652
+yr                   1995.7722     72.690     27.456      0.000    1852.954    2138.590
+holiday              -873.2715    240.865     -3.626      0.000   -1346.511    -400.032
+workingday           -226.4412    108.888     -2.080      0.038    -440.379     -12.504
+temp                 4050.9306    296.912     13.644      0.000    3467.573    4634.289
+windspeed            -816.0345    204.020     -4.000      0.000   -1216.883    -415.186
+season_spring        -838.0753    191.601     -4.374      0.000   -1214.523    -461.627
+season_summer         376.3936    134.795      2.792      0.005     111.556     641.231
+season_winter         713.5094    152.019      4.694      0.000     414.831    1012.188
+mnth_jul             -326.5137    161.455     -2.022      0.044    -643.731      -9.296
+mnth_sept             610.3106    145.804      4.186      0.000     323.843     896.779
+weekday_sat           -50.4406    138.309     -0.365      0.715    -322.182     221.301
+weathersit_bad      -2161.8583    219.559     -9.846      0.000   -2593.236   -1730.481
+weathersit_moderate  -685.8621     77.177     -8.887      0.000    -837.495    -534.229
+==============================================================================
+Omnibus:                       60.891   Durbin-Watson:                   2.127
+Prob(Omnibus):                  0.000   Jarque-Bera (JB):              113.587
+Skew:                          -0.712   Prob(JB):                     2.16e-25
+Kurtosis:                       4.819   Cond. No.                         20.3
+==============================================================================
+
+Notes:
+[1] Standard Errors assume that the covariance matrix of the errors is correctly specified.
+               Features     VIF
+3                  temp 8.10000
+2            workingday 5.73000
+4             windspeed 5.69000
+5         season_spring 2.69000
+6         season_summer 2.69000
+7         season_winter 2.19000
+0                    yr 2.09000
+10          weekday_sat 1.99000
+8              mnth_jul 1.82000
+12  weathersit_moderate 1.57000
+9             mnth_sept 1.43000
+1               holiday 1.19000
+11       weathersit_bad 1.09000
+8.4 Model 4
+# Dropping the variable holiday as it has negative coefficient and is insignificant as it has high p-value
+cols = ['yr', 'workingday', 'temp', 'windspeed', 'season_spring',
+       'season_summer', 'season_winter', 'mnth_jul', 'mnth_sept', 'weekday_sat',
+       'weathersit_bad', 'weathersit_moderate']
+build_model(cols)
+get_vif(cols)
+                            OLS Regression Results                            
+==============================================================================
+Dep. Variable:                    cnt   R-squared:                       0.823
+Model:                            OLS   Adj. R-squared:                  0.819
+Method:                 Least Squares   F-statistic:                     193.1
+Date:                Tue, 07 Jun 2022   Prob (F-statistic):          1.51e-178
+Time:                        16:24:05   Log-Likelihood:                -4150.1
+No. Observations:                 511   AIC:                             8326.
+Df Residuals:                     498   BIC:                             8381.
+Df Model:                          12                                         
+Covariance Type:            nonrobust                                         
+=======================================================================================
+                          coef    std err          t      P>|t|      [0.025      0.975]
+---------------------------------------------------------------------------------------
+const                1845.8415    288.504      6.398      0.000    1279.007    2412.676
+yr                   1997.7265     73.569     27.154      0.000    1853.182    2142.271
+workingday            -76.1270    101.906     -0.747      0.455    -276.346     124.093
+temp                 4062.1670    300.495     13.518      0.000    3471.774    4652.560
+windspeed            -786.5884    206.329     -3.812      0.000   -1191.972    -381.205
+season_spring        -870.5177    193.712     -4.494      0.000   -1251.111    -489.925
+season_summer         366.4796    136.400      2.687      0.007      98.489     634.471
+season_winter         697.9586    153.800      4.538      0.000     395.782    1000.135
+mnth_jul             -335.0219    163.394     -2.050      0.041    -656.049     -13.995
+mnth_sept             606.0378    147.566      4.107      0.000     316.109     895.967
+weekday_sat            99.5698    133.574      0.745      0.456    -162.869     362.008
+weathersit_bad      -2148.1594    222.187     -9.668      0.000   -2584.699   -1711.620
+weathersit_moderate  -676.7543     78.071     -8.668      0.000    -830.143    -523.365
+==============================================================================
+Omnibus:                       68.186   Durbin-Watson:                   2.118
+Prob(Omnibus):                  0.000   Jarque-Bera (JB):              126.740
+Skew:                          -0.787   Prob(JB):                     3.01e-28
+Kurtosis:                       4.864   Cond. No.                         20.2
+==============================================================================
+
+Notes:
+[1] Standard Errors assume that the covariance matrix of the errors is correctly specified.
+               Features     VIF
+2                  temp 7.79000
+3             windspeed 5.69000
+1            workingday 5.01000
+5         season_summer 2.66000
+4         season_spring 2.51000
+6         season_winter 2.10000
+0                    yr 2.09000
+9           weekday_sat 1.84000
+7              mnth_jul 1.82000
+11  weathersit_moderate 1.57000
+8             mnth_sept 1.42000
+10       weathersit_bad 1.09000
+8.5. Model 5
+# Dropping the variable mnth_jul as it has negative coefficient and is insignificant as it has high p-value
+cols = ['yr', 'workingday', 'temp', 'windspeed', 'season_spring',
+       'season_summer', 'season_winter', 'mnth_sept', 'weekday_sat',
+       'weathersit_bad', 'weathersit_moderate']
+build_model(cols)
+get_vif(cols)
+                            OLS Regression Results                            
+==============================================================================
+Dep. Variable:                    cnt   R-squared:                       0.822
+Model:                            OLS   Adj. R-squared:                  0.818
+Method:                 Least Squares   F-statistic:                     209.0
+Date:                Tue, 07 Jun 2022   Prob (F-statistic):          8.20e-179
+Time:                        16:24:05   Log-Likelihood:                -4152.2
+No. Observations:                 511   AIC:                             8328.
+Df Residuals:                     499   BIC:                             8379.
+Df Model:                          11                                         
+Covariance Type:            nonrobust                                         
+=======================================================================================
+                          coef    std err          t      P>|t|      [0.025      0.975]
+---------------------------------------------------------------------------------------
+const                1779.2943    287.591      6.187      0.000    1214.255    2344.333
+yr                   1992.6143     73.763     27.014      0.000    1847.691    2137.538
+workingday            -74.8818    102.231     -0.732      0.464    -275.739     125.975
+temp                 3958.5476    297.164     13.321      0.000    3374.701    4542.395
+windspeed            -779.1681    206.959     -3.765      0.000   -1185.786    -372.550
+season_spring        -778.9193    189.094     -4.119      0.000   -1150.438    -407.400
+season_summer         491.7101    122.353      4.019      0.000     251.320     732.100
+season_winter         798.5462    146.233      5.461      0.000     511.238    1085.855
+mnth_sept             715.4337    138.024      5.183      0.000     444.253     986.614
+weekday_sat           106.3578    133.961      0.794      0.428    -156.840     369.555
+weathersit_bad      -2160.9326    222.811     -9.698      0.000   -2598.697   -1723.169
+weathersit_moderate  -669.8623     78.249     -8.561      0.000    -823.600    -516.125
+==============================================================================
+Omnibus:                       70.746   Durbin-Watson:                   2.113
+Prob(Omnibus):                  0.000   Jarque-Bera (JB):              130.655
+Skew:                          -0.816   Prob(JB):                     4.25e-29
+Kurtosis:                       4.864   Cond. No.                         20.2
+==============================================================================
+
+Notes:
+[1] Standard Errors assume that the covariance matrix of the errors is correctly specified.
+               Features     VIF
+2                  temp 6.13000
+3             windspeed 5.68000
+1            workingday 5.01000
+4         season_spring 2.38000
+5         season_summer 2.10000
+0                    yr 2.09000
+6         season_winter 1.85000
+8           weekday_sat 1.84000
+10  weathersit_moderate 1.57000
+7             mnth_sept 1.25000
+9        weathersit_bad 1.09000
+8.6. Model 6
+# Dropping the variable temp as it has negative coefficient and is insignificant as it has high p-value
+cols = ['yr', 'workingday', 'windspeed', 'season_spring',
+       'season_summer', 'season_winter', 'mnth_sept', 'weekday_sat',
+       'weathersit_bad', 'weathersit_moderate']
+build_model(cols)
+get_vif(cols)
+                            OLS Regression Results                            
+==============================================================================
+Dep. Variable:                    cnt   R-squared:                       0.758
+Model:                            OLS   Adj. R-squared:                  0.753
+Method:                 Least Squares   F-statistic:                     156.8
+Date:                Tue, 07 Jun 2022   Prob (F-statistic):          4.14e-147
+Time:                        16:24:05   Log-Likelihood:                -4229.9
+No. Observations:                 511   AIC:                             8482.
+Df Residuals:                     500   BIC:                             8528.
+Df Model:                          10                                         
+Covariance Type:            nonrobust                                         
+=======================================================================================
+                          coef    std err          t      P>|t|      [0.025      0.975]
+---------------------------------------------------------------------------------------
+const                5070.0855    171.270     29.603      0.000    4733.588    5406.583
+yr                   2046.1574     85.669     23.884      0.000    1877.842    2214.473
+workingday            -55.6747    118.898     -0.468      0.640    -289.276     177.926
+windspeed           -1121.0037    238.865     -4.693      0.000   -1590.307    -651.700
+season_spring       -2807.3198    130.410    -21.527      0.000   -3063.539   -2551.101
+season_summer        -238.6532    127.226     -1.876      0.061    -488.616      11.309
+season_winter        -549.2221    122.808     -4.472      0.000    -790.505    -307.940
+mnth_sept             655.6807    160.457      4.086      0.000     340.427     970.934
+weekday_sat           174.8222    155.701      1.123      0.262    -131.087     480.732
+weathersit_bad      -2376.8425    258.475     -9.196      0.000   -2884.673   -1869.011
+weathersit_moderate  -707.3960     90.955     -7.777      0.000    -886.098    -528.694
+==============================================================================
+Omnibus:                       48.755   Durbin-Watson:                   2.017
+Prob(Omnibus):                  0.000   Jarque-Bera (JB):               87.389
+Skew:                          -0.600   Prob(JB):                     1.06e-19
+Kurtosis:                       4.632   Cond. No.                         10.1
+==============================================================================
+
+Notes:
+[1] Standard Errors assume that the covariance matrix of the errors is correctly specified.
+              Features     VIF
+2            windspeed 4.72000
+1           workingday 3.63000
+4        season_summer 2.10000
+3        season_spring 1.97000
+0                   yr 1.92000
+5        season_winter 1.79000
+9  weathersit_moderate 1.55000
+7          weekday_sat 1.53000
+6            mnth_sept 1.20000
+8       weathersit_bad 1.08000
+8.7. Model 7
+# Trying to replace July with spring as both were highly correlated
+
+cols = ['yr', 'workingday', 'windspeed', 'mnth_jul',
+       'season_summer', 'season_winter', 'mnth_sept', 'weekday_sat',
+       'weathersit_bad', 'weathersit_moderate']
+build_model(cols)
+get_vif(cols)
+                            OLS Regression Results                            
+==============================================================================
+Dep. Variable:                    cnt   R-squared:                       0.598
+Model:                            OLS   Adj. R-squared:                  0.590
+Method:                 Least Squares   F-statistic:                     74.53
+Date:                Tue, 07 Jun 2022   Prob (F-statistic):           1.84e-92
+Time:                        16:24:05   Log-Likelihood:                -4359.5
+No. Observations:                 511   AIC:                             8741.
+Df Residuals:                     500   BIC:                             8788.
+Df Model:                          10                                         
+Covariance Type:            nonrobust                                         
+=======================================================================================
+                          coef    std err          t      P>|t|      [0.025      0.975]
+---------------------------------------------------------------------------------------
+const                3428.8800    218.221     15.713      0.000    3000.137    3857.623
+yr                   2023.8468    110.482     18.318      0.000    1806.781    2240.913
+workingday            -38.3109    153.206     -0.250      0.803    -339.319     262.697
+windspeed           -1593.4679    306.186     -5.204      0.000   -2195.037    -991.899
+mnth_jul             1841.3537    205.607      8.956      0.000    1437.393    2245.314
+season_summer        1636.1185    142.791     11.458      0.000    1355.574    1916.663
+season_winter        1159.9566    142.320      8.150      0.000     880.338    1439.575
+mnth_sept            2041.2727    199.249     10.245      0.000    1649.804    2432.741
+weekday_sat           217.4077    200.645      1.084      0.279    -176.804     611.620
+weathersit_bad      -2504.9829    332.986     -7.523      0.000   -3159.206   -1850.760
+weathersit_moderate  -766.2760    117.266     -6.535      0.000    -996.670    -535.882
+==============================================================================
+Omnibus:                        1.168   Durbin-Watson:                   2.143
+Prob(Omnibus):                  0.558   Jarque-Bera (JB):                0.968
+Skew:                          -0.070   Prob(JB):                        0.616
+Kurtosis:                       3.161   Cond. No.                         10.2
+==============================================================================
+
+Notes:
+[1] Standard Errors assume that the covariance matrix of the errors is correctly specified.
+              Features     VIF
+2            windspeed 4.04000
+1           workingday 3.60000
+0                   yr 1.94000
+4        season_summer 1.66000
+9  weathersit_moderate 1.53000
+7          weekday_sat 1.52000
+5        season_winter 1.51000
+3             mnth_jul 1.20000
+6            mnth_sept 1.14000
+8       weathersit_bad 1.08000
+8.8. Model 8
+# Trying to replace July with spring as both were highly correlated
+
+cols = ['yr', 'workingday', 'windspeed', 'mnth_jul',
+       'season_summer', 'season_winter', 'mnth_sept', 'weekday_sat',
+       'weathersit_bad', 'weathersit_moderate']
+build_model(cols)
+get_vif(cols)
+                            OLS Regression Results                            
+==============================================================================
+Dep. Variable:                    cnt   R-squared:                       0.598
+Model:                            OLS   Adj. R-squared:                  0.590
+Method:                 Least Squares   F-statistic:                     74.53
+Date:                Tue, 07 Jun 2022   Prob (F-statistic):           1.84e-92
+Time:                        16:24:06   Log-Likelihood:                -4359.5
+No. Observations:                 511   AIC:                             8741.
+Df Residuals:                     500   BIC:                             8788.
+Df Model:                          10                                         
+Covariance Type:            nonrobust                                         
+=======================================================================================
+                          coef    std err          t      P>|t|      [0.025      0.975]
+---------------------------------------------------------------------------------------
+const                3428.8800    218.221     15.713      0.000    3000.137    3857.623
+yr                   2023.8468    110.482     18.318      0.000    1806.781    2240.913
+workingday            -38.3109    153.206     -0.250      0.803    -339.319     262.697
+windspeed           -1593.4679    306.186     -5.204      0.000   -2195.037    -991.899
+mnth_jul             1841.3537    205.607      8.956      0.000    1437.393    2245.314
+season_summer        1636.1185    142.791     11.458      0.000    1355.574    1916.663
+season_winter        1159.9566    142.320      8.150      0.000     880.338    1439.575
+mnth_sept            2041.2727    199.249     10.245      0.000    1649.804    2432.741
+weekday_sat           217.4077    200.645      1.084      0.279    -176.804     611.620
+weathersit_bad      -2504.9829    332.986     -7.523      0.000   -3159.206   -1850.760
+weathersit_moderate  -766.2760    117.266     -6.535      0.000    -996.670    -535.882
+==============================================================================
+Omnibus:                        1.168   Durbin-Watson:                   2.143
+Prob(Omnibus):                  0.558   Jarque-Bera (JB):                0.968
+Skew:                          -0.070   Prob(JB):                        0.616
+Kurtosis:                       3.161   Cond. No.                         10.2
+==============================================================================
+
+Notes:
+[1] Standard Errors assume that the covariance matrix of the errors is correctly specified.
+              Features     VIF
+2            windspeed 4.04000
+1           workingday 3.60000
+0                   yr 1.94000
+4        season_summer 1.66000
+9  weathersit_moderate 1.53000
+7          weekday_sat 1.52000
+5        season_winter 1.51000
+3             mnth_jul 1.20000
+6            mnth_sept 1.14000
+8       weathersit_bad 1.08000
+8.9. Model 9
+# Removing windspeed with spring as windspeed was highly correlated with temp
+cols = ['yr', 'workingday', 'season_spring', 'mnth_jul',
+       'season_summer', 'season_winter', 'mnth_sept', 'weekday_sat',
+       'weathersit_bad', 'weathersit_moderate']
+build_model(cols)
+get_vif(cols)
+                            OLS Regression Results                            
+==============================================================================
+Dep. Variable:                    cnt   R-squared:                       0.748
+Model:                            OLS   Adj. R-squared:                  0.743
+Method:                 Least Squares   F-statistic:                     148.1
+Date:                Tue, 07 Jun 2022   Prob (F-statistic):          1.75e-142
+Time:                        16:24:06   Log-Likelihood:                -4240.9
+No. Observations:                 511   AIC:                             8504.
+Df Residuals:                     500   BIC:                             8550.
+Df Model:                          10                                         
+Covariance Type:            nonrobust                                         
+=======================================================================================
+                          coef    std err          t      P>|t|      [0.025      0.975]
+---------------------------------------------------------------------------------------
+const                4618.6083    171.089     26.995      0.000    4282.466    4954.751
+yr                   2044.4203     87.603     23.337      0.000    1872.305    2216.536
+workingday            -56.1933    121.473     -0.463      0.644    -294.853     182.466
+season_spring       -2870.0928    155.996    -18.398      0.000   -3176.582   -2563.604
+mnth_jul               70.2520    191.872      0.366      0.714    -306.722     447.226
+season_summer        -295.1827    153.267     -1.926      0.055    -596.310       5.945
+season_winter        -511.6222    147.583     -3.467      0.001    -801.582    -221.662
+mnth_sept             698.3965    175.707      3.975      0.000     353.181    1043.612
+weekday_sat           187.9124    159.074      1.181      0.238    -124.624     500.449
+weathersit_bad      -2549.7818    261.417     -9.754      0.000   -3063.393   -2036.170
+weathersit_moderate  -706.6774     93.034     -7.596      0.000    -889.463    -523.892
+==============================================================================
+Omnibus:                       48.276   Durbin-Watson:                   2.052
+Prob(Omnibus):                  0.000   Jarque-Bera (JB):               89.524
+Skew:                          -0.583   Prob(JB):                     3.63e-20
+Kurtosis:                       4.686   Cond. No.                         10.8
+==============================================================================
+
+Notes:
+[1] Standard Errors assume that the covariance matrix of the errors is correctly specified.
+              Features     VIF
+1           workingday 3.53000
+4        season_summer 2.09000
+0                   yr 1.95000
+5        season_winter 1.92000
+2        season_spring 1.91000
+9  weathersit_moderate 1.54000
+7          weekday_sat 1.51000
+3             mnth_jul 1.36000
+6            mnth_sept 1.24000
+8       weathersit_bad 1.06000
+8.10. Model 10
+# using the weekend "Sunday" which was dropped during RFE instead of Saturday.
+
+cols = ['yr', 'workingday', 'season_spring', 'mnth_jul',
+       'season_summer', 'season_winter', 'mnth_sept', 'weekday_sun',
+       'weathersit_bad', 'weathersit_moderate']
+build_model(cols)
+get_vif(cols)
+                            OLS Regression Results                            
+==============================================================================
+Dep. Variable:                    cnt   R-squared:                       0.747
+Model:                            OLS   Adj. R-squared:                  0.742
+Method:                 Least Squares   F-statistic:                     147.6
+Date:                Tue, 07 Jun 2022   Prob (F-statistic):          3.20e-142
+Time:                        16:24:06   Log-Likelihood:                -4241.5
+No. Observations:                 511   AIC:                             8505.
+Df Residuals:                     500   BIC:                             8552.
+Df Model:                          10                                         
+Covariance Type:            nonrobust                                         
+=======================================================================================
+                          coef    std err          t      P>|t|      [0.025      0.975]
+---------------------------------------------------------------------------------------
+const                4681.2816    167.875     27.886      0.000    4351.454    5011.109
+yr                   2038.5364     87.673     23.252      0.000    1866.284    2210.789
+workingday           -115.6409    118.518     -0.976      0.330    -348.495     117.213
+season_spring       -2871.3755    156.223    -18.380      0.000   -3178.310   -2564.441
+mnth_jul               65.7810    192.080      0.342      0.732    -311.603     443.165
+season_summer        -295.2745    153.454     -1.924      0.055    -596.768       6.219
+season_winter        -513.5665    147.755     -3.476      0.001    -803.863    -223.270
+mnth_sept             693.6378    175.901      3.943      0.000     348.042    1039.233
+weekday_sun            67.7180    160.084      0.423      0.672    -246.803     382.239
+weathersit_bad      -2540.6418    261.664     -9.710      0.000   -3054.739   -2026.544
+weathersit_moderate  -703.4064     93.120     -7.554      0.000    -886.362    -520.451
+==============================================================================
+Omnibus:                       51.267   Durbin-Watson:                   2.060
+Prob(Omnibus):                  0.000   Jarque-Bera (JB):               98.323
+Skew:                          -0.603   Prob(JB):                     4.46e-22
+Kurtosis:                       4.778   Cond. No.                         10.8
+==============================================================================
+
+Notes:
+[1] Standard Errors assume that the covariance matrix of the errors is correctly specified.
+              Features     VIF
+1           workingday 3.47000
+4        season_summer 2.04000
+0                   yr 1.98000
+5        season_winter 1.89000
+2        season_spring 1.85000
+9  weathersit_moderate 1.53000
+7          weekday_sun 1.48000
+3             mnth_jul 1.36000
+6            mnth_sept 1.24000
+8       weathersit_bad 1.06000
+8.11. Model 11
+# adding temp and removed 'season_summer' and 'workingday'
+cols = ['yr', 'season_spring', 'mnth_jul',
+        'season_winter', 'mnth_sept', 'weekday_sun',
+       'weathersit_bad', 'weathersit_moderate', 'temp']
+
+#['yr', 'holiday','temp', 'spring','winter', 'July','September','Sunday','Light_Snow_Rain','Mist_Clody']
+build_model(cols)
+get_vif(cols)
+                            OLS Regression Results                            
+==============================================================================
+Dep. Variable:                    cnt   R-squared:                       0.816
+Model:                            OLS   Adj. R-squared:                  0.812
+Method:                 Least Squares   F-statistic:                     246.5
+Date:                Tue, 07 Jun 2022   Prob (F-statistic):          9.73e-178
+Time:                        16:24:06   Log-Likelihood:                -4160.4
+No. Observations:                 511   AIC:                             8341.
+Df Residuals:                     501   BIC:                             8383.
+Df Model:                           9                                         
+Covariance Type:            nonrobust                                         
+=======================================================================================
+                          coef    std err          t      P>|t|      [0.025      0.975]
+---------------------------------------------------------------------------------------
+const                1740.7372    205.338      8.477      0.000    1337.308    2144.167
+yr                   1994.6796     74.789     26.671      0.000    1847.740    2141.619
+season_spring       -1167.7009    145.664     -8.016      0.000   -1453.888    -881.514
+mnth_jul             -514.6318    148.396     -3.468      0.001    -806.187    -223.077
+season_winter         496.7543    111.027      4.474      0.000     278.618     714.891
+mnth_sept             465.9273    136.312      3.418      0.001     198.115     733.740
+weekday_sun           190.3752    109.596      1.737      0.083     -24.949     405.699
+weathersit_bad      -2256.1048    223.984    -10.073      0.000   -2696.168   -1816.042
+weathersit_moderate  -662.3899     79.266     -8.357      0.000    -818.125    -506.655
+temp                 3984.2556    286.305     13.916      0.000    3421.749    4546.762
+==============================================================================
+Omnibus:                       69.811   Durbin-Watson:                   2.162
+Prob(Omnibus):                  0.000   Jarque-Bera (JB):              135.943
+Skew:                          -0.786   Prob(JB):                     3.02e-30
+Kurtosis:                       4.978   Cond. No.                         14.0
+==============================================================================
+
+Notes:
+[1] Standard Errors assume that the covariance matrix of the errors is correctly specified.
+              Features     VIF
+8                 temp 3.01000
+0                   yr 2.07000
+7  weathersit_moderate 1.53000
+2             mnth_jul 1.39000
+3        season_winter 1.34000
+1        season_spring 1.25000
+4            mnth_sept 1.20000
+5          weekday_sun 1.15000
+6       weathersit_bad 1.05000
+Insights: p-value for all the features apx 0.0 and R2 is 0.821 so VIF acceptable
+
+#Build a model with all columns to select features automatically
+def build_model_sk(X,y):
+    lr1 = LinearRegression()
+    lr1.fit(X,y)
+    return lr1
+#Let us build the finalmodel using sklearn
+cols = ['yr', 'season_spring', 'mnth_jul',
+        'season_winter', 'mnth_sept', 'weekday_sun',
+       'weathersit_bad', 'weathersit_moderate', 'temp']
+#Build a model with above columns
+lr = build_model_sk(X_train[cols],y_train)
+print(lr.intercept_,lr.coef_)
+1740.7372440164272 [ 1994.67955569 -1167.70089558  -514.63181313   496.75430396
+   465.92729708   190.37518346 -2256.10482681  -662.38986442
+  3984.25555511]
+9. Model Evaluation
+9.1. Residucal Analysis
+y_train_pred = lr.predict(X_train[cols])
+#Plot a histogram of the error terms
+def plot_res_dist(act, pred):
+    sns.distplot(act-pred)
+    plt.title('Error Terms')
+    plt.xlabel('Errors')
+plot_res_dist(y_train, y_train_pred)
+Notebook Image
+Insights:
+
+with mean 0 errors are normally distributed
+# Actual vs Predicted
+c = [i for i in range(0,len(X_train),1)]
+plt.plot(c,y_train, color="blue")
+plt.plot(c,y_train_pred, color="green")
+plt.suptitle('Actual vs Predicted', fontsize = 15)
+plt.xlabel('Index')
+plt.ylabel('Demands')
+plt.show()
+Notebook Image
+Insights:
+
+Actual and Predicted follow almost same pattern so model is okay
+# Error Terms
+c = [i for i in range(0,len(X_train),1)]
+plt.plot(c,y_train-y_train_pred)
+plt.suptitle('Error Terms', fontsize = 15)
+plt.xlabel('Index')
+plt.ylabel('y_train-y_train_pred')
+plt.show()
+Notebook Image
+Insights:
+
+Here,If we see the error terms are independent of each other.
+#Printing R-squared Value
+r2_score(y_train,y_train_pred)
+0.8158045196281631
+Insights:
+
+R2 Same as we obtained for our final model
+9.2. Linearity Check
+# scatter plot for the check
+residual = (y_train - y_train_pred)
+plt.scatter(y_train,residual)
+plt.ylabel("y_train")
+plt.xlabel("Residual")
+plt.show()
+Notebook Image
+9.3. Predict values for test data set
+#Scale variables in X_test
+num_vars = ['temp','atemp','hum','windspeed']
+#Test data to be transformed only, no fitting
+X_test[num_vars] = scaler.transform(X_test[num_vars])
+#Columns from our final model
+cols = ['yr', 'season_spring', 'mnth_jul',
+        'season_winter', 'mnth_sept', 'weekday_sun',
+       'weathersit_bad', 'weathersit_moderate', 'temp']
+#Predict the values for test data
+y_test_pred = lr.predict(X_test[cols])
+9.4. R-Squared value for test predictions
+# Find out the R squared value between test and predicted test data sets.  
+r2_score(y_test,y_test_pred)
+0.8127228702995222
+9.5. Homoscedacity
+Insights
+
+The R2 prediction value of the test data (0.815) is approximately the same as the R2 value of the train data (0.818). This is a positive R-square, which is why we can see our model performing well even on invisible data (test data)
+# Plotting y_test and y_test_pred to understand the spread
+
+fig = plt.figure()
+plt.scatter(y_test, y_test_pred)
+# Plot heading 
+fig.suptitle('y_test vs y_test_pred', fontsize = 20)  
+# X-label
+plt.xlabel('y_test', fontsize = 18)                          
+plt.ylabel('y_test_pred', fontsize = 16)
+Text(0, 0.5, 'y_test_pred')
+Notebook Image
+Insights:
+
+We can observe that variance of the residuals (error terms) is constant across predictions. i.e error term does not vary much as the value of the predictor variable changes.
+9.6. Plot Test vs Predicted test values
+#Function to plot Actual vs Predicted
+#Takes Actual and Predicted values as input along with the scale and Title to indicate data
+def plot_act_pred(act,pred,scale,dataname):
+    c = [i for i in range(1,scale,1)]
+    fig = plt.figure(figsize=(14,5))
+    plt.plot(c,act, color="blue", linewidth=2.5, linestyle="-")
+    plt.plot(c,pred, color="green",  linewidth=2.5, linestyle="-")
+    # Plot heading
+    fig.suptitle('Actual and Predicted - '+dataname, fontsize=20)               
+    # X-label
+    plt.xlabel('Index', fontsize=18) 
+     # Y-label
+    plt.ylabel('Counts', fontsize=16)                              
+#Plot Actual vs Predicted for Test Data
+plot_act_pred(y_test,y_test_pred,len(y_test)+1,'Test Data')
+Notebook Image
+Insights:
+
+predictions for test data is to close to actual
+9.7. Plot Error Terms for test data
+# Error terms
+def plot_err_terms(act,pred):
+    c = [i for i in range(1,220,1)]
+    fig = plt.figure(figsize=(14,5))
+    plt.plot(c,act-pred, color="blue", marker='o', linewidth=2.5, linestyle="")
+    # Plot heading
+    fig.suptitle('Error Terms', fontsize=20)
+    # X-label
+    plt.xlabel('Index', fontsize=18)   
+     # Y-label
+    plt.ylabel('Counts - Predicted Counts', fontsize=16)               
+#Plot error terms for test data
+plot_err_terms(y_test,y_test_pred)
+Notebook Image
+Insights:
+
+error terms randomly distributed so no pattern so output explanied by model is good abd no other paramenters can explain this model better
+10. Making Predictions
+# Checking data before scaling
+bbikes.head()
+
+10.1. Intrepretting the Model
+# using statsmodel to rebuild final model of manual +rfe to explain it
+cols = ['yr', 'season_spring', 'mnth_jul',
+        'season_winter', 'mnth_sept', 'weekday_sun',
+       'weathersit_bad', 'weathersit_moderate', 'temp']
+lm = build_model(cols)
+                            OLS Regression Results                            
+==============================================================================
+Dep. Variable:                    cnt   R-squared:                       0.816
+Model:                            OLS   Adj. R-squared:                  0.812
+Method:                 Least Squares   F-statistic:                     246.5
+Date:                Tue, 07 Jun 2022   Prob (F-statistic):          9.73e-178
+Time:                        16:24:10   Log-Likelihood:                -4160.4
+No. Observations:                 511   AIC:                             8341.
+Df Residuals:                     501   BIC:                             8383.
+Df Model:                           9                                         
+Covariance Type:            nonrobust                                         
+=======================================================================================
+                          coef    std err          t      P>|t|      [0.025      0.975]
+---------------------------------------------------------------------------------------
+const                1740.7372    205.338      8.477      0.000    1337.308    2144.167
+yr                   1994.6796     74.789     26.671      0.000    1847.740    2141.619
+season_spring       -1167.7009    145.664     -8.016      0.000   -1453.888    -881.514
+mnth_jul             -514.6318    148.396     -3.468      0.001    -806.187    -223.077
+season_winter         496.7543    111.027      4.474      0.000     278.618     714.891
+mnth_sept             465.9273    136.312      3.418      0.001     198.115     733.740
+weekday_sun           190.3752    109.596      1.737      0.083     -24.949     405.699
+weathersit_bad      -2256.1048    223.984    -10.073      0.000   -2696.168   -1816.042
+weathersit_moderate  -662.3899     79.266     -8.357      0.000    -818.125    -506.655
+temp                 3984.2556    286.305     13.916      0.000    3421.749    4546.762
+==============================================================================
+Omnibus:                       69.811   Durbin-Watson:                   2.162
+Prob(Omnibus):                  0.000   Jarque-Bera (JB):              135.943
+Skew:                          -0.786   Prob(JB):                     3.02e-30
+Kurtosis:                       4.978   Cond. No.                         14.0
+==============================================================================
+
+Notes:
+[1] Standard Errors assume that the covariance matrix of the errors is correctly specified.
+import jovian
+jovian.commit()    
+ 
